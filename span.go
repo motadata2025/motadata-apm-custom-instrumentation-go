@@ -5,7 +5,7 @@ import (
 	"math"
 	"strings"
 
-	autosdk "go.opentelemetry.io/auto/sdk"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -27,7 +27,7 @@ func StartSpan(ctx context.Context, spanName string) (context.Context, *Span, er
 	if strings.TrimSpace(spanName) == "" {
 		return ctx, &Span{span: trace.SpanFromContext(context.Background())}, ErrEmptySpanName
 	}
-	tracer := autosdk.TracerProvider().Tracer(tracerName)
+	tracer := otel.GetTracerProvider().Tracer(tracerName)
 	ctx, s := tracer.Start(ctx, spanName)
 	return ctx, &Span{span: s}, nil
 }

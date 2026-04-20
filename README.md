@@ -8,28 +8,8 @@ Add validated, auto-prefixed business attributes to your traces when using **Mot
 
 | Requirement | Minimum Version |
 |---|---|
-| Go | 1.25+ |
+| Go | 1.19+ |
 | Motadata APM Agent | 8.2.0+ |
-| `go.opentelemetry.io/otel` | v1.43.0+ |
-
----
-
-## How It Works (Go vs Other Languages)
-
-In Java, Python, Node.js, .NET, and PHP, the instrumentation library finds the **current active span** from the SDK's global context and adds attributes to it directly.
-
-**Go with eBPF is different.** eBPF creates spans at kernel level; they are never stored in `context.Context` in your Go app's user space. Calling `trace.SpanFromContext(ctx)` always returns a **no-op span** — attributes set on it are silently dropped.
-
-The correct approach: **create child spans** that inherit the trace context from the eBPF parent. This library provides a thin, validated wrapper around exactly that pattern.
-
-```
-eBPF HTTP Span  [auto]
-└── CreateUser  [motadata.StartSpan → your custom attrs]
-    └── db:CreateUser  [motadata.StartSpan → your custom attrs]
-        └── eBPF DB Span  [auto]
-```
-
-All spans share the same `TraceID` and appear as a proper tree in the APM UI.
 
 ---
 

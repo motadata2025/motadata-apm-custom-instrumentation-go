@@ -25,7 +25,7 @@ go test ./...
 - Follow standard [Go formatting](https://go.dev/doc/effective_go) — run `gofmt -w .` before committing
 - All exported types and functions must have a doc comment
 - Use standard `error` return values — no custom error types (use sentinel errors like `ErrEmptyKey`)
-- No third-party dependencies beyond `go.opentelemetry.io/otel` and `go.opentelemetry.io/otel/trace`
+- No third-party dependencies beyond `go.opentelemetry.io/auto/sdk`, `go.opentelemetry.io/otel`, and `go.opentelemetry.io/otel/trace`
 - All new behavior must be covered by tests in `*_test.go` files
 
 ---
@@ -43,7 +43,7 @@ go test ./...
 
 ## OTel Version Policy
 
-This package targets `go.opentelemetry.io/otel v1.17.0` (Go 1.19+). Do not introduce APIs or behaviors that require a higher OTel version without updating the compatibility table in `Custom_Attribute_SOP.md` and bumping `go.mod` accordingly.
+This package targets `go.opentelemetry.io/otel v1.43.0` and Go 1.25+. Do not introduce APIs or behaviors that require a higher OTel version without updating `README.md` and bumping `go.mod` accordingly.
 
 ---
 

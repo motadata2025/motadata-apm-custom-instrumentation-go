@@ -1,6 +1,6 @@
 # Motadata APM Custom Instrumentation — Go
 
-Add custom business attributes to your traces when using **Motadata APM with OpenTelemetry eBPF zero-code auto-instrumentation**.
+Add validated, auto-prefixed business attributes to your traces when using **Motadata APM with OpenTelemetry eBPF zero-code auto-instrumentation**.
 
 ---
 
@@ -8,17 +8,15 @@ Add custom business attributes to your traces when using **Motadata APM with Ope
 
 | Requirement | Minimum Version |
 |---|---|
-| Go | 1.19+ |
-| Motadata Agent | 8.1.0+ |
-| `go.opentelemetry.io/otel` | v1.17.0+ |
-
-> **OTel version note:** This package ships with `v1.17.0` (minimum Go 1.19). If eBPF span correlation does not work in your environment, upgrade using the fallback ladder: `v1.21.0` → `v1.28.0` → `v1.36.0`. Only the `require` line in your `go.mod` changes — no code changes needed.
+| Go | 1.25+ |
+| Motadata APM Agent | 8.2.0+ |
+| `go.opentelemetry.io/otel` | v1.43.0+ |
 
 ---
 
 ## How It Works (Go vs Other Languages)
 
-In Java, Python, Node.js, .NET, and PHP, the instrumentation library finds the **current active span** from the SDK's global context and adds attributes to it.
+In Java, Python, Node.js, .NET, and PHP, the instrumentation library finds the **current active span** from the SDK's global context and adds attributes to it directly.
 
 **Go with eBPF is different.** eBPF creates spans at kernel level; they are never stored in `context.Context` in your Go app's user space. Calling `trace.SpanFromContext(ctx)` always returns a **no-op span** — attributes set on it are silently dropped.
 
@@ -31,7 +29,7 @@ eBPF HTTP Span  [auto]
         └── eBPF DB Span  [auto]
 ```
 
-All spans share the same `TraceID` and appear as a proper tree.
+All spans share the same `TraceID` and appear as a proper tree in the APM UI.
 
 ---
 
@@ -41,7 +39,7 @@ All spans share the same `TraceID` and appear as a proper tree.
 go get github.com/motadata2025/motadata-apm-custom-instrumentation-go@latest
 ```
 
-No other OTel packages need to be imported in your application code — this library handles them.
+No other OTel packages need to be imported in your application code — this library handles them internally.
 
 > **Important:** Do **not** call `otel.SetTracerProvider(...)` anywhere in your app. The eBPF agent registers the global `TracerProvider` automatically. Initializing one manually will conflict with the Auto SDK and break span correlation.
 
@@ -53,7 +51,7 @@ No other OTel packages need to be imported in your application code — this lib
 import motadata "github.com/motadata2025/motadata-apm-custom-instrumentation-go"
 
 func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
-    ctx, span := motadata.StartSpan(r.Context(), "user-service", "CreateUser")
+    ctx, span, _ := motadata.StartSpan(r.Context(), "CreateUser")
     defer span.End()
 
     _ = span.SetString("user.username", req.Username)
@@ -78,21 +76,30 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 #### `motadata.StartSpan`
 
 ```go
-func StartSpan(ctx context.Context, serviceName, spanName string) (context.Context, *Span)
+func StartSpan(ctx context.Context, spanName string) (context.Context, *Span, error)
 ```
 
-Creates a child span linked to the eBPF parent trace.
+Creates a child span linked to the eBPF parent trace. The instrumentation scope is automatically set to `"motadata-go-custom-instrumentation"` — you do not need to provide a service name; the eBPF agent already sets `service.name` as a resource attribute.
 
 | Parameter | Description |
 |---|---|
-| `ctx` | The current context (e.g., `r.Context()` in HTTP handlers, or the `ctx` passed from a parent span) |
-| `serviceName` | Name of your service (e.g., `"user-service"`, `"order-service"`) |
-| `spanName` | Name of the operation (e.g., `"CreateUser"`, `"db:InsertOrder"`) |
+| `ctx` | The current context (e.g. `r.Context()` in HTTP handlers, or the `ctx` returned by a parent `StartSpan` call) |
+| `spanName` | Name of the operation (e.g. `"CreateUser"`, `"db:InsertOrder"`) |
 
-Always call `defer span.End()` immediately after `StartSpan`:
+Returns `ErrEmptySpanName` if `spanName` is empty or whitespace-only. On error, a no-op span is returned — `defer span.End()` is always safe to call.
 
 ```go
-ctx, span := motadata.StartSpan(r.Context(), "my-service", "MyOperation")
+ctx, span, err := motadata.StartSpan(r.Context(), "CreateUser")
+if err != nil {
+    // spanName was empty — handle or log
+}
+defer span.End()
+```
+
+For operations where the span name is a hardcoded constant, ignoring the error is acceptable:
+
+```go
+ctx, span, _ := motadata.StartSpan(r.Context(), "CreateUser")
 defer span.End()
 ```
 
@@ -102,7 +109,7 @@ defer span.End()
 func (s *Span) End()
 ```
 
-Finalizes and exports the span to the backend.
+Finalizes and exports the span to the backend. Always call immediately after `StartSpan` using `defer`.
 
 #### `span.RecordError`
 
@@ -110,7 +117,7 @@ Finalizes and exports the span to the backend.
 func (s *Span) RecordError(err error)
 ```
 
-Records `err` as a span event (with stack trace) and sets span status to `Error`. No-op if `err` is nil.
+Records `err` as a span event (with stack trace) and sets the span status to `Error`. No-op if `err` is nil.
 
 ---
 
@@ -200,7 +207,7 @@ _ = span.SetIntSlice("product.ids", []int64{101, 202, 303})
 func (s *Span) SetFloatSlice(key string, values []float64) error
 ```
 
-Returns `ErrInvalidFloat` if any value is `NaN` or `±Inf`.
+Returns `ErrInvalidFloat` if any element is `NaN` or `±Inf`.
 
 ```go
 _ = span.SetFloatSlice("item.prices", []float64{9.99, 19.99, 4.50})
@@ -226,7 +233,7 @@ _ = span.SetBoolSlice("feature.flags", []bool{true, false, true})
 
 ```go
 func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
-    ctx, span := motadata.StartSpan(r.Context(), "user-service", "CreateUser")
+    ctx, span, _ := motadata.StartSpan(r.Context(), "CreateUser")
     defer span.End()
 
     _ = span.SetString("http.method", r.Method)
@@ -249,7 +256,7 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 ```go
 func (r *UserRepo) CreateUser(ctx context.Context, req CreateUserRequest) (*User, error) {
     // ctx carries the handler span as parent — child link is automatic
-    _, span := motadata.StartSpan(ctx, "user-service", "db:CreateUser")
+    _, span, _ := motadata.StartSpan(ctx, "db:CreateUser")
     defer span.End()
 
     _ = span.SetString("db.operation", "INSERT")
@@ -269,7 +276,7 @@ func (r *UserRepo) CreateUser(ctx context.Context, req CreateUserRequest) (*User
 
 ```go
 func ProcessOrder(ctx context.Context, orderID string) error {
-    ctx, span := motadata.StartSpan(ctx, "order-service", "ProcessOrder")
+    ctx, span, _ := motadata.StartSpan(ctx, "ProcessOrder")
     defer span.End()
 
     _ = span.SetString("order.id", orderID)
@@ -300,38 +307,39 @@ func ProcessOrder(ctx context.Context, orderID string) error {
 
 ## Error Handling
 
+Attribute errors are **non-fatal**. The span continues normally; only that one attribute is skipped.
+
 ```go
 if err := span.SetString("user.email", email); err != nil {
-    log.Printf("custom attribute error: %v", err)
-    // span is still active — other attributes and the span itself are unaffected
+    log.Printf("custom attribute skipped: %v", err)
 }
 ```
-
-Attribute errors are non-fatal. The span continues normally; only that one attribute is not recorded.
 
 Sentinel errors:
 
 | Error | Cause |
 |---|---|
-| `motadata.ErrEmptyKey` | Key is empty or whitespace-only |
-| `motadata.ErrInvalidKey` | Key contains characters other than `a-z`, `0-9`, `.` |
+| `motadata.ErrEmptyKey` | Attribute key is empty or whitespace-only |
+| `motadata.ErrInvalidKey` | Attribute key contains characters other than `a-z`, `0-9`, `.` |
 | `motadata.ErrInvalidFloat` | Float value is `NaN` or `±Inf` |
+| `motadata.ErrEmptySpanName` | `spanName` passed to `StartSpan` is empty or whitespace-only |
 
 ---
 
 ## Best Practices
 
-- **Use hierarchical keys** — `"user.id"`, `"db.table"`, `"order.status"` — for organized attribute grouping in the APM UI
-- **Always pass `ctx` downstream** — the child span chain (`StartSpan(ctx, ...)`) only works if `ctx` flows through every function call
+- **Use hierarchical dot-separated keys** — `"order.customer.tier"`, `"payment.method"` — for organized grouping in the APM UI
+- **Always pass `ctx` downstream** — the child span chain only works if `ctx` flows through every function call
 - **Always `defer span.End()`** — a span that is never ended is never exported
-- **Wrap in try/catch equivalent** — attribute errors are safe to log and ignore; never let them break business logic
-- **Be consistent with key naming** — use the same key names across services so attributes are filterable across traces
+- **Keep under 10 attributes per span** — the eBPF buffer has a fixed limit per span; split across child spans if you need more
+- **Never let attribute errors break business logic** — always use `_ =` or check and log; attribute failures are non-fatal by design
+- **Be consistent with key naming** — use the same key names across services so attributes are filterable across traces in the APM UI
 
 ---
 
 ## Example Application
 
-A complete working example is available in the [`example/`](./example/) directory.
+A complete working example is available in the [`example/`](./example/) directory, demonstrating HTTP handler, repository, and service layer instrumentation.
 
 ---
 

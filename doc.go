@@ -15,7 +15,7 @@
 //	import motadata "github.com/motadata2025/motadata-apm-custom-instrumentation-go"
 //
 //	func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
-//	    ctx, span := motadata.StartSpan(r.Context(), "user-service", "CreateUser")
+//	    ctx, span, _ := motadata.StartSpan(r.Context(), "CreateUser")
 //	    defer span.End()
 //
 //	    _ = span.SetString("user.name", req.Username)  // stored as apm.user.name

@@ -7,9 +7,10 @@ import (
 )
 
 var (
-	ErrEmptyKey     = errors.New("motadata: attribute key must not be empty")
-	ErrInvalidKey   = errors.New("motadata: attribute key must contain only alphanumeric characters and dots")
-	ErrInvalidFloat = errors.New("motadata: float value must be finite (not NaN or Inf)")
+	ErrEmptyKey      = errors.New("motadata: attribute key must not be empty")
+	ErrInvalidKey    = errors.New("motadata: attribute key must contain only alphanumeric characters and dots")
+	ErrInvalidFloat  = errors.New("motadata: float value must be finite (not NaN or Inf)")
+	ErrEmptySpanName = errors.New("motadata: spanName must not be empty")
 )
 
 var validKeyRe = regexp.MustCompile(`^[a-z0-9.]+$`)

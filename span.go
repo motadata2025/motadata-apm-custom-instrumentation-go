@@ -3,8 +3,9 @@ package motadata
 import (
 	"context"
 	"math"
+	"strings"
 
-	"go.opentelemetry.io/otel"
+	autosdk "go.opentelemetry.io/auto/sdk"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -15,22 +16,26 @@ type Span struct {
 	span trace.Span
 }
 
+const tracerName = "motadata-go-custom-instrumentation"
+
 // StartSpan creates a child span under the given context using the Motadata eBPF Auto SDK.
-// serviceName identifies the instrumented service; spanName names the operation.
+// spanName names the operation being instrumented.
+// Returns ErrEmptySpanName if spanName is empty or whitespace-only.
+// On error a no-op span is returned — defer span.End() is always safe to call.
 // Always call span.End() (typically via defer) immediately after StartSpan.
-//
-// Do NOT call otel.SetTracerProvider anywhere in your app — the eBPF agent
-// registers the provider globally. This function uses it automatically.
-func StartSpan(ctx context.Context, serviceName, spanName string) (context.Context, *Span) {
-	tracer := otel.Tracer(serviceName)
+func StartSpan(ctx context.Context, spanName string) (context.Context, *Span, error) {
+	if strings.TrimSpace(spanName) == "" {
+		return ctx, &Span{span: trace.SpanFromContext(context.Background())}, ErrEmptySpanName
+	}
+	tracer := autosdk.TracerProvider().Tracer(tracerName)
 	ctx, s := tracer.Start(ctx, spanName)
-	return ctx, &Span{span: s}
+	return ctx, &Span{span: s}, nil
 }
 
 // End finalizes and exports the span to the backend.
 // Call immediately after StartSpan using defer:
 //
-//	ctx, span := motadata.StartSpan(r.Context(), "svc", "op")
+//	ctx, span, _ := motadata.StartSpan(r.Context(), "op")
 //	defer span.End()
 func (s *Span) End() {
 	s.span.End()

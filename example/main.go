@@ -22,7 +22,7 @@ type CreateUserRequest struct {
 }
 
 func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
-	ctx, span := motadata.StartSpan(r.Context(), "user-service", "CreateUser")
+	ctx, span, _ := motadata.StartSpan(r.Context(), "CreateUser")
 	defer span.End()
 
 	var req CreateUserRequest
@@ -61,7 +61,7 @@ type User struct {
 }
 
 func (r *UserRepo) CreateUser(ctx context.Context, req CreateUserRequest) (*User, error) {
-	_, span := motadata.StartSpan(ctx, "user-service", "db:CreateUser")
+	_, span, _ := motadata.StartSpan(ctx, "db:CreateUser")
 	defer span.End()
 
 	_ = span.SetString("db.operation", "INSERT")
@@ -77,7 +77,7 @@ func (r *UserRepo) CreateUser(ctx context.Context, req CreateUserRequest) (*User
 // ---- Service / Business Logic layer ----
 
 func ProcessOrder(ctx context.Context, orderID string, itemCount int64, tags []string) error {
-	_, span := motadata.StartSpan(ctx, "order-service", "ProcessOrder")
+	_, span, _ := motadata.StartSpan(ctx, "ProcessOrder")
 	defer span.End()
 
 	_ = span.SetString("order.id", orderID)
@@ -93,6 +93,12 @@ func ProcessOrder(ctx context.Context, orderID string, itemCount int64, tags []s
 func main() {
 	repo := &UserRepo{}
 	handler := &UserHandler{repo: repo}
+
+	// ProcessOrder demonstrates service-layer instrumentation.
+	// In a real app this would be called with a real context from an active request.
+	if err := ProcessOrder(context.Background(), "ORD-001", 3, []string{"urgent", "vip"}); err != nil {
+		log.Printf("ProcessOrder: %v", err)
+	}
 
 	http.HandleFunc("/users", handler.CreateUser)
 

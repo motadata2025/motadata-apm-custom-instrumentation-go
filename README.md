@@ -8,7 +8,7 @@ Add validated, auto-prefixed business attributes to your traces when using **Mot
 
 | Requirement | Minimum Version |
 |---|---|
-| Go | 1.19+ |
+| Go | 1.22+ |
 | Motadata APM Agent | 8.2.0+ |
 
 ---
@@ -21,7 +21,7 @@ go get github.com/motadata2025/motadata-apm-custom-instrumentation-go@latest
 
 No other OTel packages need to be imported in your application code — this library handles them internally.
 
-> **Important:** Do **not** call `otel.SetTracerProvider(...)` anywhere in your app. The eBPF agent registers the global `TracerProvider` automatically. Initializing one manually will conflict with the Auto SDK and break span correlation.
+> **Important:** Do **not** call `otel.SetTracerProvider(...)` anywhere in your app. This package uses `autosdk.TracerProvider()` directly — the eBPF agent hooks into this automatically. Initializing a global `TracerProvider` manually will conflict with the Auto SDK and break span correlation.
 
 ---
 

@@ -21,4 +21,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rejection of `NaN` and `±Inf` float values in `SetFloat` and `SetFloatSlice`
 - No-op span returned on `StartSpan` error — `defer span.End()` is always safe without a nil check
 - Full example application in `example/` demonstrating HTTP handler, repository, and service layers
-- Compatible with `go.opentelemetry.io/otel v1.17.0` (Go 1.19+)
+- Compatible with `go.opentelemetry.io/otel v1.43.0` and `go.opentelemetry.io/auto/sdk v1.2.1` (Go 1.22+)

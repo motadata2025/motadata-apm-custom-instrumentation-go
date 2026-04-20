@@ -7,8 +7,9 @@
 // stored in context.Context in user space, so trace.SpanFromContext always returns
 // a no-op span — any attributes set on it are silently dropped.
 //
-// This package solves that by creating child spans that inherit the eBPF parent's
-// trace context, then providing validated, auto-prefixed attribute setters on those spans.
+// This package solves that by using autosdk.TracerProvider() directly — the Auto SDK
+// bridges user-space spans to the eBPF parent trace automatically, then providing
+// validated, auto-prefixed attribute setters on those spans.
 //
 // # Basic usage
 //
@@ -34,7 +35,8 @@
 // and automatically prefixed with "apm.". Passing "apm." already in the key is safe —
 // double-prefixing is prevented.
 //
-// Do NOT call otel.SetTracerProvider anywhere in your application. The eBPF agent
-// registers the global TracerProvider automatically. Initializing one manually
-// conflicts with the Auto SDK and breaks span correlation.
+// Do NOT call otel.SetTracerProvider anywhere in your application. This package
+// uses autosdk.TracerProvider() directly — the eBPF agent hooks into it automatically.
+// Initializing a global TracerProvider manually conflicts with the Auto SDK and breaks
+// span correlation.
 package motadata
